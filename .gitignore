@@ -3,3 +3,7 @@
 
 # Headless Chrome scratch profiles created by the .devtest harness
 .devtest/profile*/
+
+# Runtime output written by the mock proxy harness
+.devtest/mock_log.jsonl
+.devtest/report_*.txt
