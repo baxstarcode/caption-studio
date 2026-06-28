@@ -8,4 +8,4 @@ Every time this command runs:
 5. Commit with a clear message.
 6. Report in under 8 lines: what you did, the next unchecked step, any single open question. Then stop.
 
-Rules: one increment per run. Never touch a [BRADY] step. If only [BRADY]/blocked steps remain, say so and stop. The Anthropic key lives ONLY in Apps Script Script Properties — never in the repo, never never in the HTML.
+Rules: one increment per run. Never touch a [BRADY] step. If only [BRADY]/blocked steps remain, say so and stop. The Anthropic key lives ONLY in Apps Script Script Properties — never in the repo, never in the HTML.
