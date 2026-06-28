@@ -7,3 +7,6 @@
 # Runtime output written by the mock proxy harness
 .devtest/mock_log.jsonl
 .devtest/report_*.txt
+
+# Generated bench build of index.html (mock URL + bench token)
+.devtest/index_bench.html

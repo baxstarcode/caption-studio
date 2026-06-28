@@ -269,6 +269,17 @@ let postTime = "4 PM CT";
 
 const $ = id => document.getElementById(id);
 
+/* Render an error into #errBox using textContent, so a proxy/model-supplied
+   message can never inject markup. */
+function showError(msg){
+  const box = $("errBox");
+  box.innerHTML = "";
+  const d = document.createElement("div");
+  d.className = "err";
+  d.textContent = msg;
+  box.appendChild(d);
+}
+
 /* ---------- Photo upload ---------- */
 $("drop").addEventListener("click", () => $("file").click());
 $("file").addEventListener("change", async (e) => {
@@ -354,22 +365,33 @@ Return exactly: {"species":[],"isBassPost":false,"vexusBoat":false,"mercuryMotor
   try{
     const r = await fetch(PROXY_URL,{
       method:"POST",
-      headers:{ "Content-Type":"application/json" },
+      // text/plain is a CORS-simple content type, so the browser sends NO
+      // preflight. Apps Script reads e.postData.contents regardless of the
+      // declared type; application/json here would trigger an OPTIONS preflight
+      // that the GAS web app refuses, failing before it ever reaches the proxy.
+      headers:{ "Content-Type":"text/plain;charset=UTF-8" },
       body: JSON.stringify({
         _token: PROXY_TOKEN,
         messages:[{ role:"user", content }]
       })
     });
     const data = await r.json();
-    if (data.error){ throw new Error(typeof data.error === "string" ? data.error : (data.error.message || "Proxy error")); }
+    // Proxy returns Anthropic's raw JSON: success has `content`, any failure
+    // (bad token, proxy misconfigured, model error) has `error`. Show the real
+    // reason rather than a one-size-fits-all "couldn't read the photo".
+    if (data.error){
+      showError(typeof data.error === "string" ? data.error : (data.error.message || "Proxy error"));
+      return;
+    }
     const text = (data.content||[])
       .filter(b => b.type === "text").map(b => b.text).join("\n")
       .replace(/```json|```/g,"").trim();
     const out = JSON.parse(text);
     fillResults(out);
   }catch(err){
+    // Network failure, non-JSON body, or a model reply that wasn't valid JSON.
     console.error(err);
-    $("errBox").innerHTML = `<div class="err">Couldn't read the photo — tap "Read photo & draft" to try again. If it keeps failing, the image may not have uploaded fully.</div>`;
+    showError('Couldn’t read the photo — tap "Read photo & draft" to try again. If it keeps failing, the image may not have uploaded fully, or the proxy URL/token below may still be unset.');
   }finally{
     btn.disabled = false;
     btn.textContent = images.length ? "Re-read photo" : "Read photo & draft";
@@ -437,6 +459,18 @@ function bindLive(){
   );
 }
 
+/* Hard-cap total hashtags at 5, counting the mandatory #getyourbassingear bass
+   tag (Brady's rule: "5 max total, counting #getyourbassingear"). Keeps the
+   first tags entered and reports how many were trimmed, so nothing is dropped
+   silently. Mentions are @handles and do NOT count toward the 5. */
+function capHashtags(rawTags, isBass){
+  const reserved = isBass ? 1 : 0;                 // the bass tag occupies one slot
+  const budget = Math.max(0, 5 - reserved);
+  const tokens = rawTags.split(/\s+/).filter(Boolean);
+  const kept = tokens.slice(0, budget);
+  return { tags: kept.join(" "), total: reserved + kept.length, dropped: tokens.length - kept.length };
+}
+
 function assemble(){
   const cap = $("caption").value.trim();
   const isBass = $("bass").checked;
@@ -448,8 +482,9 @@ function assemble(){
   lines.push(BRAND.name);
   lines.push(BRAND.site);
 
-  const tags = $("hashtags").value.trim();
-  if(tags) lines.push(tags);
+  // hashtags, hard-capped at 5 total (the bass tag counts)
+  const ht = capHashtags($("hashtags").value.trim(), isBass);
+  if(ht.tags) lines.push(ht.tags);
 
   // confirmed mentions
   const handles = [];
@@ -458,21 +493,22 @@ function assemble(){
   // Detroit Lake handles already cover the lake-account mentions; lake name lives in caption context only.
   if(handles.length) lines.push(handles.join(" "));
 
-  return { text: lines.join("\n"), handles, tags };
+  return { text: lines.join("\n"), handles, tags: ht.tags, hashCount: ht.total, dropped: ht.dropped };
 }
 
 function build(){
-  const { text } = assemble();
+  const { text, hashCount, dropped } = assemble();
   // highlight hashtags + mentions in preview
   const html = text
     .replace(/(@[a-z0-9._]+)/gi,'<span class="m">$1</span>')
     .replace(/(#[a-z0-9]+)/gi,'<span class="h">$1</span>');
   $("preview").innerHTML = html;
 
-  // tag count (IG counts # and @ both as "tags"; Brady's rule = 5 hashtags max)
-  const hashCount = (text.match(/#[a-z0-9]+/gi)||[]).length;
-  const over = hashCount > 5;
-  $("tagCount").innerHTML = `<span class="${over?'over':''}">${hashCount}/5 hashtags${over?' — over limit':''}</span>`;
+  // Output is hard-capped at 5 hashtags (the bass tag counts). If the user
+  // entered more, say how many were trimmed rather than just flagging "over".
+  $("tagCount").innerHTML = dropped > 0
+    ? `<span class="over">${hashCount}/5 hashtags · ${dropped} extra trimmed</span>`
+    : `<span>${hashCount}/5 hashtags</span>`;
   $("charCount").textContent = `${text.length} chars · ${postTime}`;
 }
 
