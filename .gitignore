@@ -10,3 +10,4 @@
 
 # Generated bench build of index.html (mock URL + bench token)
 .devtest/index_bench.html
+.devtest/live-verify-*/
