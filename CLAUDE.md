@@ -1,7 +1,8 @@
 # Baxstar Caption Studio — repo rules
 
 ## Locked decision (2026-06-28, by Brady)
-Architecture is **proxy**, not artifact. Static frontend on GitHub Pages (`index.html`)
+Architecture is **proxy**, not artifact. Static frontend on GitHub Pages — the
+landing page at `index.html`, the TOOL at `app/index.html` (moved 2026-07-06) —
 + a Google Apps Script proxy (`backend/Code.gs`) that holds the Anthropic key in Script
 Properties. This mirrors the proven **baxstar-pontoon** pattern.
 
@@ -11,8 +12,10 @@ Properties. This mirrors the proven **baxstar-pontoon** pattern.
 
 ## The key — non-negotiable
 The Anthropic API key lives ONLY in Apps Script Script Properties. Never in this repo,
-never in `index.html`, never in any committed file. `PROXY_URL` and `PROXY_TOKEN` in
-`index.html` stay as clearly-marked placeholders until Brady deploys.
+never in any HTML, never in any committed file. The deploy is DONE (2026-06-28): the real
+`PROXY_URL` and `PROXY_TOKEN` are committed in `app/index.html` — the token is an accepted
+soft gate (Brady's ship-as-is decision, 2026-07-02); only the `sk-ant-` key must never land
+in the repo.
 
 ## How this repo is built
 `BUILD_STATE.md` is the source of truth for build progress. Run `/caption` to execute one

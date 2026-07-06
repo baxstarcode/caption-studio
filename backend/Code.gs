@@ -1,7 +1,7 @@
 /**
  * =============================================================================
  * BAXSTAR CAPTION STUDIO — ANTHROPIC PROXY
- * Google Apps Script web app. Receives POSTs from index.html (GitHub Pages)
+ * Google Apps Script web app. Receives POSTs from app/index.html (GitHub Pages)
  * and relays them to the Anthropic Messages API, keeping the API key
  * server-side. Same proven pattern as baxstar-pontoon/Code.gs.
  *
@@ -10,14 +10,14 @@
  * Script Properties so it never touches the repo or the browser.
  *
  * CONTRACT
- *   Request  (from index.html):  { "_token": "<token>", "messages": [ ... ] }
- *   Response (to index.html):    Anthropic's raw /v1/messages JSON, unchanged.
+ *   Request  (from app/index.html):  { "_token": "<token>", "messages": [ ... ] }
+ *   Response (to app/index.html): Anthropic's raw /v1/messages JSON, unchanged.
  *                                On success that JSON has a `content` array;
  *                                on any error it has an `error` field — the
  *                                frontend branches on `data.error`.
  *
  * SECRETS — Script Properties only (never in this file, never in the repo):
- *   BAXSTAR_TOKEN       must match PROXY_TOKEN in index.html
+ *   BAXSTAR_TOKEN       must match PROXY_TOKEN in app/index.html
  *   ANTHROPIC_API_KEY   an sk-ant- key (Brady provides at deploy time)
  *
  * Model + max_tokens are injected here, server-side, so the browser can't

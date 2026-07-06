@@ -1,12 +1,12 @@
 # Deploying Baxstar Caption Studio
 
-Frontend: `index.html` on **GitHub Pages**. Backend: `backend/Code.gs` as a
+Frontend on **GitHub Pages**: the landing page at `index.html`, the tool at `app/index.html`. Backend: `backend/Code.gs` as a
 **Google Apps Script web app** that holds the Anthropic key. Same proven shape
 as baxstar-pontoon.
 
 > **Non-negotiable:** the Anthropic key lives ONLY in Apps Script **Script
-> Properties** — never in this repo, never in `index.html`, never in any
-> committed file. `index.html` gets the **exec URL** and the **token** only.
+> Properties** — never in this repo, never in any HTML, never in any
+> committed file. `app/index.html` gets the **exec URL** and the **token** only.
 
 You do this once. Budget ~15 minutes. Steps marked **▶** happen in the Apps
 Script editor; the rest in your browser / GitHub.
@@ -17,7 +17,7 @@ Script editor; the rest in your browser / GitHub.
 
 - An **`sk-ant-` API key** (console.anthropic.com → API keys).
 - A **shared token** you invent — any long random string. It gates the proxy
-  and must match in two places (Script Properties **and** `index.html`).
+  and must match in two places (Script Properties **and** `app/index.html`).
   Generate one in Terminal if you like:
   ```
   openssl rand -hex 16
@@ -87,15 +87,16 @@ A login page here = wrong access setting or an `/a/` URL → back to step 5.
 
 ## Part B — Wire the frontend to the proxy
 
-**7. Edit `index.html`** (top of the `<script>` block). Replace the two
-clearly-marked placeholders — these are the **only** edits the frontend needs:
+**7. Edit `app/index.html`** (top of the `<script>` block; done 2026-06-28 — the real
+values are committed, so this step only matters when rotating the token or re-wiring).
+Replace the two values — these are the **only** edits the frontend needs:
 
 ```js
 const PROXY_URL   = "PASTE_PROXY_EXEC_URL_HERE";   // → your /macros/s/.../exec URL
 const PROXY_TOKEN = "PASTE_TOKEN_HERE";            // → the same <TOKEN> as BAXSTAR_TOKEN
 ```
 
-`PROXY_TOKEN` must equal `BAXSTAR_TOKEN` exactly. Commit and push `index.html`.
+`PROXY_TOKEN` must equal `BAXSTAR_TOKEN` exactly. Commit and push `app/index.html`.
 (The fetch already sends `Content-Type: text/plain` so the browser sends no
 CORS preflight — leave that as-is.)
 
@@ -105,13 +106,13 @@ CORS preflight — leave that as-is.)
 
 **8. Enable Pages.** Repo **Settings → Pages** → **Source: Deploy from a
 branch** → Branch **`main`** / **`/ (root)`** → **Save**. Wait ~1 minute for
-the live URL (`https://baxstarcode.github.io/caption-studio/`).
+the live URL (`https://baxstarcode.github.io/caption-studio/` — the root serves the LANDING page; the tool is at `.../caption-studio/app/`).
 
 ---
 
 ## Part D — Verify live (build step 7)
 
-On the live Pages URL, with a real fishing photo: a caption comes back, sponsor
+On the live TOOL URL (`https://baxstarcode.github.io/caption-studio/app/`), with a real fishing photo: a caption comes back, sponsor
 chips toggle, hashtags cap at 5, copy works. A `200` alone isn't "done" — see
 build step 7.
 
@@ -130,7 +131,7 @@ change: **Deploy → Manage deployments →** edit the existing deployment (penc
 
 - **The key is safe:** it never leaves Script Properties; `Code.gs` fixes the
   model and `max_tokens` server-side, so the browser can't change them.
-- **The token is NOT a secret.** It ships inside the public `index.html`, so
+- **The token is NOT a secret.** It ships inside the public `app/index.html`, so
   anyone who views source can read it and call your proxy. It's a *soft gate*
   that stops casual drive-by use, nothing more. The real protection is the
   bounded server-side call (one model, `max_tokens` 1000) capping abuse cost.
@@ -146,7 +147,7 @@ change: **Deploy → Manage deployments →** edit the existing deployment (penc
 |---|---|
 | `/exec` shows a Google **login page** | `/macros/a/` URL or access ≠ "Anyone" → redeploy (step 5) |
 | Frontend error: **"Proxy not configured…"** | `BAXSTAR_TOKEN` or `ANTHROPIC_API_KEY` missing → step 3, re-run `setupCheck` |
-| Frontend error: **"Bad or missing token"** | `PROXY_TOKEN` in `index.html` ≠ `BAXSTAR_TOKEN` → step 7 |
+| Frontend error: **"Bad or missing token"** | `PROXY_TOKEN` in `app/index.html` ≠ `BAXSTAR_TOKEN` → step 7 |
 | Error mentioning **authentication / 401** | bad/expired `sk-ant-` key → replace in Script Properties |
 | Caption flow hangs / network error in console | check the `/exec` URL is the one pasted into `PROXY_URL`; re-run the sanity check (step 6) |
 | Changed `Code.gs` but behavior is stale | you didn't ship a **New version** → see "Updating the proxy later" |

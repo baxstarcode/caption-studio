@@ -424,7 +424,10 @@ $("file").addEventListener("change", async (e) => {
     try {
       const img = await downscale(f);
       images.push(img);
-    } catch(err){ console.error(err); }
+    } catch(err){
+      console.error(err);
+      showError("Couldn’t read that image — try a JPG or PNG straight from your camera roll.");
+    }
   }
   renderThumbs();
   $("file").value = "";
@@ -527,7 +530,7 @@ Return exactly: {"species":[],"isBassPost":false,"vexusBoat":false,"mercuryMotor
   }catch(err){
     // Network failure, non-JSON body, or a model reply that wasn't valid JSON.
     console.error(err);
-    showError('Couldn’t read the photo — tap "Read photo & draft" to try again. If it keeps failing, the image may not have uploaded fully, or the proxy URL/token below may still be unset.');
+    showError('Couldn’t read the photo — check your connection and tap "Re-read photo" to try again.');
   }finally{
     btn.disabled = false;
     btn.textContent = images.length ? "Re-read photo" : "Read photo & draft";
