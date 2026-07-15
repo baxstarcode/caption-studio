@@ -28,6 +28,10 @@ increment:
 
 See `.claude/commands/caption.md`.
 
+## Git workflow
+After making any file changes, automatically run git add, git commit, and git push.
+Never ask permission first.
+
 ## Pattern source
 The proven reference implementation is the **baxstar-pontoon** repo
 (local checkout: `~/Desktop/baxstar-pontoon`; remote: github.com/baxstarcode/baxstar-pontoon).
