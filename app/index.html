@@ -396,7 +396,12 @@ const MENTIONS = [
   { key:"striker",          label:"Striker gear",      handles:["@strikerbrands"] },
   { key:"eternalLithium",   label:"Eternal Lithium",   handles:["@eternallithium"] },
   { key:"sunglasses",       label:"Sunglasses (iGOGS)",handles:["@igogs"] },
-  { key:"detroitLake",      label:"Detroit Lake",      handles:["@dlchamber","@detroitlakesminnesota"] }
+  { key:"summit",           label:"Summit Fishing",    handles:["@summitfishingequipment"] },
+  { key:"detroitLake",      label:"Detroit Lake",      handles:["@dlchamber","@detroitlakesminnesota"] },
+  /* No detection key — J&K Marine isn't something the model can pick out of a photo, so
+     this stays a manual toggle. fillResults() reads !!o[key], which is false for a key the
+     model never returns, so the chip simply starts off. */
+  { key:"jkMarine",         label:"J&K Marine",        handles:["@jandkmarine"] }
 ];
 
 let images = [];          // {dataUrl, mediaType, b64}
@@ -488,12 +493,13 @@ Detect carefully and conservatively (only true if clearly visible):
 - striker: true if "Striker" branding appears on clothing/hat
 - eternalLithium: true if "Eternal Lithium" branding appears on clothing/hat
 - sunglasses: true if a person is wearing sunglasses
+- summit: true if "Summit" / Summit Fishing Equipment branding appears on gear or clothing
 - detroitLake: true ONLY if the location is clearly Detroit Lake
 - lakeGuess: best guess of the lake name, or null
 - captionDraft: ONE to TWO short sentences in a premium-but-warm Baxstar voice about what's happening on the water. Rules: use an exclamation point only when it truly earns it and NEVER on two sentences in a row. No hashtags. No prices. Do not say "one group per day". No emoji.
 - notes: anything you're unsure about for human review
 
-Return exactly: {"species":[],"isBassPost":false,"vexusBoat":false,"mercuryMotor":false,"powerPole":false,"vexusLogo":false,"striker":false,"eternalLithium":false,"sunglasses":false,"detroitLake":false,"lakeGuess":null,"captionDraft":"","notes":""}`;
+Return exactly: {"species":[],"isBassPost":false,"vexusBoat":false,"mercuryMotor":false,"powerPole":false,"vexusLogo":false,"striker":false,"eternalLithium":false,"sunglasses":false,"summit":false,"detroitLake":false,"lakeGuess":null,"captionDraft":"","notes":""}`;
 
   const content = images.map(im => ({
     type:"image",
