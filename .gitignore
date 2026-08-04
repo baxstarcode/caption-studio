@@ -14,3 +14,6 @@
 
 # Local-only deps for the browser harness (npm install --no-save playwright)
 node_modules/
+
+# Screenshots written by the .devtest harness
+.devtest/shot_*.png
