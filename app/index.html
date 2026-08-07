@@ -221,6 +221,27 @@
   }
   .count .over{color:var(--red-soft);}
 
+  /* Composer checklist — the two things that must be typed into Instagram's own
+     fields rather than the caption, so they actually notify and pin. */
+  .composer{
+    margin-top:12px;border:1px solid var(--line-strong);border-radius:4px;
+    background:var(--ink);padding:12px 13px;
+  }
+  .composer .ctitle{
+    font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+    letter-spacing:.14em;font-size:12px;color:var(--muted);margin:0 0 9px;
+  }
+  .composer .crow{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);}
+  .composer .crow:last-of-type{border-bottom:none;}
+  .composer .ckey{
+    flex:0 0 82px;font-family:'Barlow Condensed',sans-serif;font-weight:600;
+    text-transform:uppercase;letter-spacing:.1em;font-size:11.5px;color:var(--muted);
+    padding-top:2px;
+  }
+  .composer .cval{flex:1;font-size:13.5px;line-height:1.5;color:var(--silver-2);word-break:break-word;}
+  .composer .cval.none{color:var(--muted);font-style:italic;}
+  .composer .chint{font-size:11.5px;color:var(--muted);line-height:1.5;margin:9px 0 0;}
+
   .note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:10px;}
   .note b{color:var(--silver-2);font-weight:600;}
   .hidden{display:none;}
@@ -359,6 +380,18 @@
       <div class="preview" id="preview"></div>
       <div class="count"><span id="tagCount"></span><span id="charCount"></span></div>
       <button class="btn btn-copy" id="copy">Copy caption</button>
+
+      <!-- Handles and location live in Instagram's own fields, not in the caption text.
+           This is the checklist for what to type there after pasting. -->
+      <div class="composer">
+        <p class="ctitle">Then in Instagram, before you share</p>
+        <div class="crow"><div class="ckey">Tag people</div><div class="cval" id="cHandles"></div></div>
+        <div class="crow"><div class="ckey">Location</div><div class="cval" id="cLake"></div></div>
+        <p class="chint">Tagging here notifies the account and shows on the photo. An @ typed into the
+          caption does neither — and doing both tags every sponsor twice. Facebook has the same two
+          fields; use them the same way.</p>
+      </div>
+
       <p class="note">
         <b>Hide like count:</b> set once in Instagram → Settings → "Hide like and view counts" (covers every post — can't be set from here).<br>
         <b>Timing:</b> this tool drafts; you still post manually. Auto-scheduling comes when we wire the backend.
@@ -616,38 +649,59 @@ function capHashtags(rawTags, isBass){
   return { tags: kept.join(" "), total: reserved + kept.length, dropped: tokens.length - kept.length };
 }
 
+/* The finished caption, and ONLY the caption.
+
+   #getyourbassingear is a bass-post tag (Brady's rule): it appears only when the Bass
+   switch is on, and when it does it sits immediately above the business name with a blank
+   line above it, so the brand block reads as one unit separated from the caption body.
+
+   Handles and the lake are deliberately NOT in this text. They belong in Instagram's own
+   Tag People and Location fields — that's the version that actually notifies an account
+   and pins a real place. Pasting them into the caption instead gets you a plain-text
+   @mention that notifies nobody, and if you ALSO tag properly in the composer, every
+   sponsor gets tagged twice. They're surfaced next to the copy button instead, so you
+   know exactly what to enter there. */
 function assemble(){
   const cap = $("caption").value.trim();
   const isBass = $("bass").checked;
 
-  // tight brand block — no blank lines above or below
   const lines = [];
   if(cap) lines.push(cap);
+  // blank line, then the brand block as one unbroken run
+  lines.push("");
   if(isBass) lines.push(BRAND.bassTag);
   lines.push(BRAND.name);
   lines.push(BRAND.site);
 
-  // hashtags, hard-capped at 5 total (the bass tag counts)
+  // hashtags, hard-capped at 5 total (the bass tag counts when it's there)
   const ht = capHashtags($("hashtags").value.trim(), isBass);
   if(ht.tags) lines.push(ht.tags);
 
-  // confirmed mentions
+  // Confirmed mentions — returned for the composer checklist, never appended to the text.
   const handles = [];
   MENTIONS.forEach(m => { if(mentionState[m.key]) handles.push(...m.handles); });
   const lake = $("lake").value.trim();
-  // Detroit Lake handles already cover the lake-account mentions; lake name lives in caption context only.
-  if(handles.length) lines.push(handles.join(" "));
 
-  return { text: lines.join("\n"), handles, tags: ht.tags, hashCount: ht.total, dropped: ht.dropped };
+  return { text: lines.join("\n").trim(), handles, lake, isBass, tags: ht.tags, hashCount: ht.total, dropped: ht.dropped };
 }
 
 function build(){
-  const { text, hashCount, dropped } = assemble();
-  // highlight hashtags + mentions in preview
+  const { text, hashCount, dropped, handles, lake } = assemble();
+  // Highlight hashtags in the preview. Handles are highlighted too — not because the
+  // caption puts any there, but because a hand-typed one in the caption body should
+  // stand out, since that's the mistake this layout exists to prevent.
   const html = text
     .replace(/(@[a-z0-9._]+)/gi,'<span class="m">$1</span>')
     .replace(/(#[a-z0-9]+)/gi,'<span class="h">$1</span>');
   $("preview").innerHTML = html;
+
+  // Composer checklist — what to type into Instagram's own fields.
+  const hs = $("cHandles");
+  hs.textContent = handles.length ? handles.join("  ") : "Nothing to tag";
+  hs.className = "cval" + (handles.length ? "" : " none");
+  const lk = $("cLake");
+  lk.textContent = lake || "Leave empty";
+  lk.className = "cval" + (lake ? "" : " none");
 
   // Output is hard-capped at 5 hashtags (the bass tag counts). If the user
   // entered more, say how many were trimmed rather than just flagging "over".

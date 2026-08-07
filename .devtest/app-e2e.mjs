@@ -120,10 +120,15 @@ check("Power-Pole stays off when undetected", !onChips.some((t) => /Power-Pole/.
 check("canonical Vexus handle is the one shown",
   /@therealvexusboats/.test(chipText) && !/@vexusboats\b/.test(chipText.replace(/@therealvexusboats/g, "")));
 
-/* Toggle J&K on and confirm its handle reaches the preview. */
+/* Toggle J&K on. Its handle belongs in the composer checklist — the list of what to
+   type into Instagram's own Tag People field — and NOT in the caption preview, where an
+   @ notifies nobody and double-tags anyone also tagged properly. */
 await page.locator('#chips .chip:has-text("J&K Marine")').click();
-check("toggling J&K on adds its handle to the preview",
-  /@jandkmarine/.test(await page.locator("#preview").innerText()));
+check("toggling J&K on adds its handle to the composer checklist",
+  /@jandkmarine/.test(await page.locator("#cHandles").innerText()));
+check("handles stay out of the caption preview",
+  !/@/.test(await page.locator("#preview").innerText()),
+  await page.locator("#preview").innerText());
 
 /* Hashtag cap — the bass tag takes a slot, so 5 total with extras reported. */
 await page.fill("#hashtags", "#a #b #c #d #e #f #g");
@@ -137,9 +142,43 @@ await page.locator("#copy").click();
 const clip = await page.evaluate(() => navigator.clipboard.readText());
 check("copied text carries exactly 5 hashtags", (clip.match(/#[\w]+/g) || []).length === 5,
   (clip.match(/#[\w]+/g) || []).join(" "));
-check("copied text includes the locked bass tag", clip.includes("#getyourbassingear"));
-check("copied text includes both Summit and J&K handles",
-  clip.includes("@summitfishingequipment") && clip.includes("@jandkmarine"), clip);
+check("copied text includes the bass tag on a bass post", clip.includes("#getyourbassingear"));
+check("copied text carries no @handles at all",
+  !/@/.test(clip), clip);
+
+/* Brady's placement rule: on a bass post the tag sits directly above the business name,
+   with a blank line above it, so the brand block reads as one unit. */
+const clipLines = clip.split("\n");
+const bassIdx = clipLines.indexOf("#getyourbassingear");
+check("bass tag sits immediately above the business name",
+  bassIdx >= 0 && clipLines[bassIdx + 1] === "Baxstar Fishing Guide Service",
+  JSON.stringify(clipLines));
+check("a blank line separates the caption body from the bass tag",
+  bassIdx > 0 && clipLines[bassIdx - 1] === "", JSON.stringify(clipLines));
+
+/* The lake belongs in Instagram's Location field as a plain name — never an ID, which
+   Meta hard-rejects — and never in the caption text. */
+const lakeShown = await page.locator("#cLake").innerText();
+check("location checklist shows a plain lake name, not an ID",
+  lakeShown.trim().length > 0 && !/^\d+$/.test(lakeShown.trim()), lakeShown);
+check("the lake is not pasted into the caption", !clip.includes(lakeShown.trim()), clip);
+
+/* A look at the finished card, for eyeballing the brand-block spacing and the checklist. */
+await page.locator(".preview").locator("xpath=ancestor::div[@class='card']")
+  .screenshot({ path: path.join(ROOT, ".devtest/shot_ready.png") });
+
+/* Turning Bass off drops the tag entirely — it is a bass-post-only tag. The checkbox is
+   display:none behind its styled switch, so flip it directly rather than clicking. */
+await page.evaluate(() => {
+  const b = document.getElementById("bass");
+  b.checked = false;
+  b.dispatchEvent(new Event("change"));
+});
+await page.locator("#copy").click();
+const clipNoBass = await page.evaluate(() => navigator.clipboard.readText());
+check("bass tag disappears on a non-bass post", !clipNoBass.includes("#getyourbassingear"), clipNoBass);
+check("brand block still leads with the business name without the bass tag",
+  clipNoBass.split("\n").includes("Baxstar Fishing Guide Service"), clipNoBass);
 
 check("no uncaught page errors", pageErrors.length === 0, pageErrors.join(" | "));
 
