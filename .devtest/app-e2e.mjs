@@ -180,6 +180,30 @@ check("bass tag disappears on a non-bass post", !clipNoBass.includes("#getyourba
 check("brand block still leads with the business name without the bass tag",
   clipNoBass.split("\n").includes("Baxstar Fishing Guide Service"), clipNoBass);
 
+/* PWA installability: the three files an install prompt needs must exist and agree.
+   The SW itself is exercised by the browser only over https or localhost; here we
+   assert the contract (files served, manifest sane, registration wired) without
+   waiting on worker lifecycle. */
+const manifest = await page.evaluate(async () => {
+  const link = document.querySelector('link[rel="manifest"]');
+  if (!link) return { err: "no manifest link" };
+  const res = await fetch(link.href);
+  if (!res.ok) return { err: "manifest " + res.status };
+  return { json: await res.json() };
+});
+check("manifest is linked, served, and standalone with icons",
+  !manifest.err && manifest.json.display === "standalone" && (manifest.json.icons || []).length >= 3,
+  JSON.stringify(manifest).slice(0, 120));
+const pwaBits = await page.evaluate(async () => ({
+  sw: (await fetch("sw.js")).ok,
+  icon: (await fetch("icons/icon-192.png")).ok,
+  apple: !!document.querySelector('link[rel="apple-touch-icon"]'),
+  theme: !!document.querySelector('meta[name="theme-color"]'),
+  reg: !!navigator.serviceWorker,
+}));
+check("sw.js and icons are served, apple-touch + theme-color present",
+  pwaBits.sw && pwaBits.icon && pwaBits.apple && pwaBits.theme, JSON.stringify(pwaBits));
+
 check("no uncaught page errors", pageErrors.length === 0, pageErrors.join(" | "));
 
 await browser.close();
