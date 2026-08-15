@@ -732,6 +732,29 @@ $("copy").addEventListener("click", async () => {
   }
   setTimeout(() => $("copy").textContent = "Copy caption", 1600);
 });
+
+/* ---------- Shared-in photos (Android share target) ---------- */
+// The service worker stashes share-sheet photos in a cache and redirects here with
+// ?shared=1. Pull them through the same intake as the picker, then clean up both the
+// stash and the URL flag so a reload doesn't re-import.
+if (new URLSearchParams(location.search).has("shared") && "caches" in window) {
+  addEventListener("load", async () => {
+    try {
+      const cache = await caches.open("caption-shared-v1");
+      const keys = await cache.keys();
+      for (const k of keys) {
+        if (images.length >= 6) break;
+        const hit = await cache.match(k);
+        if (!hit) continue;
+        try { images.push(await downscale(await hit.blob())); }
+        catch (e) { showError("Couldn’t read a shared photo — try a JPG or PNG straight from your camera roll."); }
+      }
+      for (const k of keys) await cache.delete(k);
+      renderThumbs();
+      history.replaceState(null, "", location.pathname);
+    } catch (e) { /* no photos is a normal open, not an error */ }
+  });
+}
 </script>
 <script>
 // Installable app shell. Registration only — all behavior lives in sw.js. Failure
