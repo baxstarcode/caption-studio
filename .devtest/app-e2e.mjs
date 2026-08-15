@@ -204,6 +204,35 @@ const pwaBits = await page.evaluate(async () => ({
 check("sw.js and icons are served, apple-touch + theme-color present",
   pwaBits.sw && pwaBits.icon && pwaBits.apple && pwaBits.theme, JSON.stringify(pwaBits));
 
+/* Outbound share: stub the share sheet, click the button, assert the payload.
+   The two photos uploaded earlier must arrive as FILES (originals retained by the
+   intake), the caption must ride as text, and the clipboard must already hold the
+   caption before the sheet opens — iOS drops share text, the clipboard is the plan. */
+const shareResult = await page.evaluate(async () => {
+  window.__shares = [];
+  navigator.canShare = () => true;
+  navigator.share = (d) => { window.__shares.push({
+    files: (d.files || []).length,
+    allFiles: (d.files || []).every((f) => f instanceof File && f.size > 0),
+    hasText: typeof d.text === "string" && d.text.length > 0,
+  }); return Promise.resolve(); };
+  document.getElementById("share").click();
+  await new Promise((r) => setTimeout(r, 120));
+  return {
+    calls: window.__shares,
+    clip: await navigator.clipboard.readText(),
+    keptOriginals: window.__images.every((im) => im.file instanceof File || typeof im.b64 === "string"),
+    label: document.getElementById("share").textContent,
+  };
+});
+check("share sends the photos as real files with the caption as text",
+  shareResult.calls.length === 1 && shareResult.calls[0].files === 2 && shareResult.calls[0].allFiles && shareResult.calls[0].hasText,
+  JSON.stringify(shareResult.calls));
+check("caption is on the clipboard before the sheet opens",
+  shareResult.clip.length > 0 && !shareResult.clip.includes("@"), shareResult.clip.slice(0, 80));
+check("intake keeps a shareable file per photo", shareResult.keptOriginals, "");
+check("share button confirms and points at the clipboard", /clipboard/i.test(shareResult.label), shareResult.label);
+
 check("no uncaught page errors", pageErrors.length === 0, pageErrors.join(" | "));
 
 await browser.close();

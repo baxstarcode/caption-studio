@@ -386,6 +386,7 @@
       <div class="preview" id="preview"></div>
       <div class="count"><span id="tagCount"></span><span id="charCount"></span></div>
       <button class="btn btn-copy" id="copy">Copy caption</button>
+      <button class="btn btn-copy" id="share">Share photo + caption</button>
 
       <!-- Handles and location live in Instagram's own fields, not in the caption text.
            This is the checklist for what to type there after pasting. -->
@@ -467,6 +468,9 @@ $("file").addEventListener("change", async (e) => {
   for (const f of files) {
     try {
       const img = await downscale(f);
+      // The original rides along untouched: the model reads the 1280px render,
+      // but anything shared onward (Instagram) gets full quality.
+      img.file = f;
       images.push(img);
     } catch(err){
       console.error(err);
@@ -733,6 +737,44 @@ $("copy").addEventListener("click", async () => {
   setTimeout(() => $("copy").textContent = "Copy caption", 1600);
 });
 
+/* ---------- Share (native sheet -> Instagram) ---------- */
+// One tap replaces the copy-switch-paste dance: the photos go to the share sheet at
+// full quality and the caption is already on the clipboard, because iOS hands
+// Instagram the image but silently drops share text. Where there is no share sheet
+// (desktop), the button degrades to a plain copy and says so.
+function fileFromDataUrl(im, i){
+  try {
+    const bin = atob(im.b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+    return new File([bytes], `photo-${i + 1}.jpg`, { type: im.mediaType || "image/jpeg" });
+  } catch { return null; }
+}
+$("share").addEventListener("click", async () => {
+  const { text } = assemble();
+  try { await navigator.clipboard.writeText(text); } catch {}
+  const done = (label) => {
+    $("share").textContent = label;
+    setTimeout(() => $("share").textContent = "Share photo + caption", 2600);
+  };
+  if (!navigator.share) { done("No share sheet here — caption copied instead"); return; }
+  const files = images.map((im, i) => im.file || fileFromDataUrl(im, i)).filter(Boolean);
+  try {
+    if (files.length && (!navigator.canShare || navigator.canShare({ files })))
+      await navigator.share({ files, text });
+    else
+      await navigator.share({ text });
+    done("Shared ✓ — caption is on your clipboard, paste it in Instagram");
+  } catch (e) {
+    // AbortError is the user closing the sheet — silence, not failure.
+    if (e && e.name !== "AbortError") done("Couldn’t share — caption copied instead");
+    else done("Share photo + caption");
+  }
+});
+
+// Test hook: the harness asserts intake keeps originals. Carries no behavior.
+window.__images = images;
+
 /* ---------- Shared-in photos (Android share target) ---------- */
 // The service worker stashes share-sheet photos in a cache and redirects here with
 // ?shared=1. Pull them through the same intake as the picker, then clean up both the
@@ -746,7 +788,12 @@ if (new URLSearchParams(location.search).has("shared") && "caches" in window) {
         if (images.length >= 6) break;
         const hit = await cache.match(k);
         if (!hit) continue;
-        try { images.push(await downscale(await hit.blob())); }
+        try {
+          const blob = await hit.blob();
+          const img = await downscale(blob);
+          img.file = new File([blob], "shared-photo.jpg", { type: blob.type || "image/jpeg" });
+          images.push(img);
+        }
         catch (e) { showError("Couldn’t read a shared photo — try a JPG or PNG straight from your camera roll."); }
       }
       for (const k of keys) await cache.delete(k);
