@@ -12,6 +12,10 @@
  *   · Navigations fall back to the cached shell when offline.
  */
 const CACHE = "caption-shell-v1";
+// Photos handed over by the OS share sheet (manifest share_target) wait here between
+// the POST landing below and the app pulling them out after the redirect. A separate
+// cache so the activate cleanup and shell-version bumps can never eat a shared photo.
+const SHARE_CACHE = "caption-shared-v1";
 const SHELL = ["./", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -23,7 +27,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await Promise.all(keys.filter((k) => k !== CACHE && k !== SHARE_CACHE).map((k) => caches.delete(k)));
       await self.clients.claim();
     })()
   );
@@ -31,8 +35,35 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  if (req.method !== "GET") return;
   const url = new URL(req.url);
+
+  // Android share sheet → "Captions". The OS POSTs the photo(s) here; stash them and
+  // bounce to the app with a flag it checks on load. 303 so the redirect is a GET.
+  // iOS Safari ignores share_target entirely — there, photos come in via the picker.
+  if (req.method === "POST" && url.origin === self.location.origin && url.pathname.endsWith("/share-target")) {
+    event.respondWith(
+      (async () => {
+        try {
+          const form = await req.formData();
+          const files = form.getAll("photos").filter((f) => f && typeof f.arrayBuffer === "function");
+          const cache = await caches.open(SHARE_CACHE);
+          // A new share replaces any photos a previous share left unclaimed.
+          for (const k of await cache.keys()) await cache.delete(k);
+          let i = 0;
+          for (const f of files.slice(0, 6)) {
+            await cache.put(
+              "./shared-photo-" + i++,
+              new Response(f, { headers: { "Content-Type": f.type || "image/jpeg" } })
+            );
+          }
+        } catch (e) { /* fall through — the app just opens with no photos */ }
+        return Response.redirect("./?shared=1", 303);
+      })()
+    );
+    return;
+  }
+
+  if (req.method !== "GET") return;
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
