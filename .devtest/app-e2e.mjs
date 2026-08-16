@@ -233,6 +233,29 @@ check("caption is on the clipboard before the sheet opens",
 check("intake keeps a shareable file per photo", shareResult.keptOriginals, "");
 check("share button confirms and points at the clipboard", /clipboard/i.test(shareResult.label), shareResult.label);
 
+/* Camera path: a dedicated capture input that opens the rear camera on a phone and
+   feeds the exact same intake as the picker — thumbs grow, original File retained. */
+const beforeCam = await page.evaluate(() => window.__images.length);
+const camAttrs = await page.evaluate(() => {
+  const c = document.getElementById("camera");
+  return c && { capture: c.getAttribute("capture"), accept: c.getAttribute("accept") };
+});
+check("camera input opens the rear camera", camAttrs && camAttrs.capture === "environment" && /image/.test(camAttrs.accept), JSON.stringify(camAttrs));
+await page.setInputFiles("#camera", [{ name: "snap.jpg", mimeType: "image/jpeg", buffer: await jpeg(1600, 1200, 120) }]);
+await page.waitForFunction((n) => window.__images.length === n + 1, beforeCam);
+const camEntry = await page.evaluate(() => {
+  const im = window.__images[window.__images.length - 1];
+  return { hasFile: im.file instanceof File, thumbs: document.querySelectorAll("#thumbs img, #thumbs .thumb").length };
+});
+check("camera shot lands in the same intake with its original retained",
+  camEntry.hasFile && camEntry.thumbs >= 3, JSON.stringify(camEntry));
+const touch = await page.evaluate(() => ({
+  ta: getComputedStyle(document.getElementById("analyze")).touchAction,
+  safe: Array.from(document.styleSheets).some((ss) => { try { return Array.from(ss.cssRules).some((r) => /safe-area-inset/.test(r.cssText)); } catch { return false; } }),
+}));
+check("touch-action manipulation on controls, safe-area padding in the sheet",
+  touch.ta === "manipulation" && touch.safe, JSON.stringify(touch));
+
 check("no uncaught page errors", pageErrors.length === 0, pageErrors.join(" | "));
 
 await browser.close();
