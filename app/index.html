@@ -117,6 +117,19 @@
     letter-spacing:.08em;font-size:18px;color:#fff;margin-top:8px;
   }
   .drop .sub{color:var(--muted);font-size:12.5px;margin-top:2px;}
+  #camera{display:none;}
+  .snap{
+    width:100%;margin-top:10px;padding:12px;min-height:44px;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    background:transparent;border:1px solid rgba(255,255,255,.14);border-radius:10px;
+    color:var(--text);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+  }
+  .snap svg{width:18px;height:18px;stroke:var(--red);stroke-width:1.6;fill:none;}
+  .snap:active{border-color:var(--red);background:rgba(193,39,45,.06);}
+  /* App-feel touch: no gray tap flash, no double-tap zoom delay, no pull rubber-band
+     under a standalone display. */
+  button, .drop{-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+  html{overscroll-behavior-y:none;}
   #file{display:none;}
   .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
   .thumb{position:relative;width:72px;height:72px;border-radius:4px;overflow:hidden;border:1px solid var(--line-strong);}
@@ -336,6 +349,13 @@
       <div class="sub">Straight from your camera roll</div>
     </div>
     <input type="file" id="file" accept="image/*" multiple />
+    <!-- capture="environment" opens the rear camera directly on a phone instead of
+         the picker — the fish is still in hand, the photo goes straight in. -->
+    <button class="snap" id="snap" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.2"/><path d="M7 5l1.4-2h7.2L17 5"/></svg>
+      Take a photo now
+    </button>
+    <input type="file" id="camera" accept="image/*" capture="environment" />
     <div class="thumbs" id="thumbs"></div>
   </div>
 
@@ -463,8 +483,11 @@ function showError(msg){
 
 /* ---------- Photo upload ---------- */
 $("drop").addEventListener("click", () => $("file").click());
-$("file").addEventListener("change", async (e) => {
-  const files = Array.from(e.target.files).slice(0, 6 - images.length);
+$("snap").addEventListener("click", () => $("camera").click());
+
+// One intake for every way a photo arrives: picker, camera, share sheet.
+async function intake(fileList){
+  const files = Array.from(fileList).slice(0, 6 - images.length);
   for (const f of files) {
     try {
       const img = await downscale(f);
@@ -478,8 +501,9 @@ $("file").addEventListener("change", async (e) => {
     }
   }
   renderThumbs();
-  $("file").value = "";
-});
+}
+$("file").addEventListener("change", async (e) => { await intake(e.target.files); $("file").value = ""; });
+$("camera").addEventListener("change", async (e) => { await intake(e.target.files); $("camera").value = ""; });
 
 /* Resize on a canvas -> normalized JPEG. Also dodges HEIC/large-file issues. */
 function downscale(file){
