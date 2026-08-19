@@ -256,6 +256,40 @@ const touch = await page.evaluate(() => ({
 check("touch-action manipulation on controls, safe-area padding in the sheet",
   touch.ta === "manipulation" && touch.safe, JSON.stringify(touch));
 
+/* Offline queue, full round trip: kill the signal, analyze queues the draft;
+   reopen with coverage, one tap finishes it against the mock. The abort route
+   stacks on top of the mock and unrouting restores it. */
+const abortRoute = (route) => route.abort("internetdisconnected");
+await page.route(`${PROXY}**`, abortRoute);
+await page.locator("#analyze").click();
+await page.waitForFunction(() => !!localStorage.getItem("cs-queued-draft"));
+const queued = await page.evaluate(() => ({
+  q: JSON.parse(localStorage.getItem("cs-queued-draft")),
+  msg: document.getElementById("errBox").textContent,
+}));
+check("dead signal queues the draft instead of losing it",
+  queued.q.photos.length === 3 && queued.q.photos.every((p) => p.b64.length > 100) && /saved/i.test(queued.msg),
+  `${queued.q.photos.length} photos | ${queued.msg.slice(0, 60)}`);
+// Unroute ONLY the abort handler — a bare unroute(pattern) would also remove
+// the mock underneath it and send the finish step to the real proxy.
+await page.unroute(`${PROXY}**`, abortRoute);
+
+await page.reload({ waitUntil: "load" });
+await page.waitForSelector("#queueBar:not(.hidden)");
+const offer = await page.evaluate(() => document.getElementById("queueInfo").textContent);
+check("next open offers the lake draft", /3 photos saved/.test(offer), offer);
+await page.locator("#queueGo").click();
+await page.waitForSelector("#results:not(.hidden)", { timeout: 20000 });
+const finished = await page.evaluate(() => ({
+  cleared: !localStorage.getItem("cs-queued-draft"),
+  thumbs: window.__images.length,
+  caption: document.getElementById("caption") ? document.getElementById("caption").value.length : document.getElementById("preview").textContent.length,
+  barHidden: document.getElementById("queueBar").classList.contains("hidden"),
+}));
+check("one tap finishes the draft and clears the queue",
+  finished.cleared && finished.thumbs === 3 && finished.caption > 0 && finished.barHidden,
+  JSON.stringify(finished));
+
 check("no uncaught page errors", pageErrors.length === 0, pageErrors.join(" | "));
 
 await browser.close();
