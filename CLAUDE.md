@@ -52,23 +52,33 @@ npm install --no-save playwright && npx playwright install chromium
 node .devtest/app-e2e.mjs
 ```
 
-## Doc discipline (Baxstar_AI_Context Rule 15, 2026-08-01)
+Testing follows the proportional rule in Baxstar_Build_Standards: targeted changes get
+targeted verification; releases and risky changes get broader proof.
 
-**After finishing any piece of work here, update Brady's docs before the turn ends.** Not a
-draft for him to paste — write it.
+## Source-of-truth preflight and doc discipline
 
-- This tool's build progress goes in `BUILD_STATE.md` (the repo's own ledger, and the
-  authority for build state). Session narrative goes to `Baxstar_Handoff_Log`; anything
-  touching Ember goes to `Baxstar_Ember_Handoff_Log` instead — never both.
-- Any durable rule or decision must ALSO land in its owning domain doc per the router
-  (`Baxstar Source of Truth`), not only in a log.
-- **Unless it's already there.** Read first — reads are free. A duplicate entry is worse
-  than none: it pushes real content toward the trim threshold and creates two versions of
-  one fact that can later disagree. If existing text is wrong or incomplete, correct it in
-  place rather than appending a second copy.
-- Verify by re-reading the live doc. A write tool's success response is not proof — this
-  rule exists because prior tooling falsely reported successful writes.
+For work that changes Caption Studio code/config/live behavior, depends on a prior project
+decision, or states current project status:
 
-What counts as finishing: shipped code, a pushed branch or PR, an adopted decision, a
-discovered bug, a corrected earlier claim. Exploration that reached no conclusion still
-gets one line.
+1. Read `BUILD_STATE.md`, this file, and any relevant repo deploy/test documentation first.
+2. A Drive-capable chat agent also follows **Baxstar Source of Truth Router**
+   (`1AgIxAj0YM8XNTTMHVcJInNAquLKnon-WB4i2DMzTzRQ`) and the canonical
+   **Baxstar_Build_Standards** (`1VfETYcTNktp-6cZLVAHbAUDBmR1NqlwMGCgl2Xo5DY0`).
+3. Build-only agents that cannot read Drive work repo-first from these synced constraints
+   and must not claim Drive was updated.
+
+After durable state changes:
+
+- Build progress belongs in `BUILD_STATE.md`.
+- Recent changes/open items go to `Baxstar_Handoff_Log` under its established discipline;
+  Ember-specific work goes to `Baxstar_Ember_Handoff_Log` instead — never both.
+- Durable cross-project rules/decisions also go to the Router-designated owning Drive source.
+- Use `Baxstar_Agent_Relay` only when another AI has a concrete next action, unresolved
+  dependency, or important current-state handoff.
+- Read first; correct existing text in place instead of creating duplicate versions.
+- Verify Drive writes by re-reading them. A tool success response is not proof.
+- Exploration with no adopted outcome does not require a ceremonial log/Relay write.
+
+Do not expand a requested change into retrofit-on-touch, mandatory commercialization work,
+blanket testing/deploy documentation, or a ceremonial CEO/CFO/IT review. Apply the current
+Gremlin-clean build standard proportionally.
