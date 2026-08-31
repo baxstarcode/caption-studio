@@ -18,6 +18,14 @@ import { JSDOM } from "jsdom";
     window.addEventListener("load", () => setTimeout(res, 0));
   });
 
+  // app/index.html declares MENTIONS and mentionState with const/let at the top level of a
+  // classic <script>. Those bindings live in the script's global LEXICAL scope, which is NOT
+  // the same as the window object — window.MENTIONS is undefined and always will be. Reach
+  // them through window.eval, which runs in that scope. (Reading them off window silently
+  // skipped every assertion in this file.)
+  const ev = (expr) => window.eval(expr);
+  const MENTIONS = ev("typeof MENTIONS !== 'undefined' ? MENTIONS : null");
+
   const failures = [];
 
   // Test A: assemble() must not inject any confirmed @handles or the lake value into text
@@ -35,21 +43,23 @@ import { JSDOM } from "jsdom";
     lakeEl.value = pinnedLake;
     hashtagsEl.value = "#test";
 
-    // Turn on every mention to simulate model-detected sponsors
-    if (!window.mentionState) window.mentionState = {};
-    if (Array.isArray(window.MENTIONS)) {
-      window.MENTIONS.forEach(m => { window.mentionState[m.key] = true; });
-    }
+    if (!Array.isArray(MENTIONS)) throw new Error("MENTIONS not found or not an array in app/index.html");
+
+    // Turn on every mention to simulate model-detected sponsors (same scope as assemble())
+    ev("MENTIONS.forEach(m => { mentionState[m.key] = true; })");
 
     const out = window.assemble();
 
     // Ensure none of the MENTIONS handles are present in assembled text
-    if (Array.isArray(window.MENTIONS)){
-      const handlesFound = [];
-      window.MENTIONS.forEach(m => {
-        (m.handles||[]).forEach(h => { if (out.text.includes(h)) handlesFound.push(h); });
-      });
-      if (handlesFound.length) failures.push(`assemble() included confirmed handles in text: ${handlesFound.join(", ")}`);
+    const handlesFound = [];
+    MENTIONS.forEach(m => {
+      (m.handles||[]).forEach(h => { if (out.text.includes(h)) handlesFound.push(h); });
+    });
+    if (handlesFound.length) failures.push(`assemble() included confirmed handles in text: ${handlesFound.join(", ")}`);
+
+    // The handles must still be reported OUT of band, for the composer checklist
+    if (!Array.isArray(out.handles) || out.handles.length === 0){
+      failures.push("assemble() returned no handles — the Tag People checklist would be empty");
     }
 
     // Ensure the assembled text does not contain the lake string
@@ -60,8 +70,8 @@ import { JSDOM } from "jsdom";
   // Test B: sponsor list parity
   try{
     // Get app handles from the running DOM
-    if (!Array.isArray(window.MENTIONS)) throw new Error("MENTIONS not found or not an array in app");
-    const appHandles = new Set(window.MENTIONS.flatMap(m => (m.handles||[])));
+    if (!Array.isArray(MENTIONS)) throw new Error("MENTIONS not found or not an array in app/index.html");
+    const appHandles = new Set(MENTIONS.flatMap(m => (m.handles||[])));
 
     // Try to fetch canonical from baxstar-ember
     const canonicalUrl = "https://raw.githubusercontent.com/baxstarcode/baxstar-ember/main/src/baxstar-ember.jsx";
