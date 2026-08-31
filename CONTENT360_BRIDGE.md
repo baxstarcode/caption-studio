@@ -9,15 +9,23 @@ Caption Studio and Content360 are complementary, not substitutes.
 
 Caption Studio will not recreate Content360's dashboard, scheduling, analytics, inbox, link-in-bio, QR, chatbot, RSS, or bulk-publishing features.
 
-## Phase 1 build
+## Phase 1 pilot — implemented on branch
 
-Add one reliable handoff from the existing Ready-to-post card:
+Branch: `chatgpt/content360-bridge`
 
-1. Copy the exact finalized Caption Studio caption.
-2. Open Brady's Content360 Create Post composer in a new tab.
-3. Explain the remaining steps plainly: upload the same media, select accounts and timing, paste the caption, and use native tagging/location fields where supported.
-4. Preserve the existing native share-sheet workflow as a separate option.
-5. Update the old "auto-scheduling comes later" message so Content360 is explicitly the scheduling/publishing layer.
+Pilot route after merge: `/app/content360/`
+
+The pilot is deliberately non-destructive. It embeds the existing Caption Studio rather than copying or rewriting its production logic, then adds one Content360 handoff bar below it.
+
+The handoff:
+
+1. Reads the exact current `assemble()` output from Caption Studio.
+2. Copies that finalized caption.
+3. Opens Brady's tested Content360 Create Post composer in a new tab.
+4. Shows the remaining posting checklist: media count, sponsor tags, location, and selected timing.
+5. Preserves the existing native share-sheet workflow as a separate option inside Caption Studio.
+
+The pilot is not linked from the production app yet and does not alter the current live route. It should be reviewed through its pull request before merge.
 
 ## Out of scope for Phase 1
 
@@ -31,13 +39,26 @@ Add one reliable handoff from the existing Ready-to-post card:
 
 Those require evidence from real use or an official Content360 integration surface.
 
-## Success criteria
+## Verification
+
+Static contract checks live at `.devtest/content360-bridge-static.mjs` and run in GitHub Actions through `.github/workflows/content360-bridge.yml`.
+
+The checks verify that:
+
+- the pilot reuses the current app through a same-origin iframe;
+- the exact Caption Studio `assemble()` output is copied;
+- the tested Content360 composer URL is used;
+- the native share and offline-draft workflows remain present;
+- the pilot contains no Anthropic API key;
+- the media-transfer limitation is stated accurately.
+
+## Success criteria for pilot acceptance
 
 - One tap copies the caption and opens the correct Content360 composer.
 - The copied text is byte-identical to Caption Studio's current assembled output.
 - Existing camera, picker, share-sheet, offline queue, sponsor, location, bass-tag, and five-hashtag behaviors remain unchanged.
-- Browser regression harness remains green.
-- Installed PWA users receive the new app shell after the service-worker cache version is bumped.
+- GitHub checks pass.
+- Brady confirms the mobile handoff saves meaningful time in a real post.
 
 ## Future gates
 
