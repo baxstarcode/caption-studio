@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Caption Studio to Content360</title>
+<meta name="description" content="Use Caption Studio for the intelligent draft, then hand the finished post to Content360 for scheduling and publishing." />
+<meta name="theme-color" content="#0a0a0b" />
+<style>
+  :root{
+    --ink:#0a0a0b;
+    --ink-2:#141416;
+    --line:rgba(255,255,255,.12);
+    --text:#f0f0f2;
+    --muted:#a5a5aa;
+    --red:#c1272d;
+    --red-bright:#e3262e;
+    --blue:#188ec9;
+    --blue-bright:#21a7e8;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--ink);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  body{overflow:hidden}
+  .shell{height:100%;display:grid;grid-template-rows:auto 1fr auto;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+  header{
+    min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:8px 12px;border-bottom:1px solid var(--line);background:rgba(10,10,11,.98)
+  }
+  .brand{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .brand span{color:var(--red-bright)}
+  .mode{font-size:12px;color:var(--muted);text-align:right}
+  iframe{width:100%;height:100%;border:0;background:var(--ink)}
+  .handoff{
+    position:relative;z-index:3;padding:10px 12px 12px;border-top:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(20,20,22,.98),rgba(10,10,11,.99));
+    box-shadow:0 -16px 40px rgba(0,0,0,.38)
+  }
+  .state{min-height:18px;margin:0 0 8px;color:var(--muted);font-size:12px;line-height:1.4}
+  .actions{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+  button{
+    min-height:46px;border-radius:7px;border:1px solid var(--line);font:inherit;font-weight:800;
+    cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent
+  }
+  #open360{
+    color:white;background:linear-gradient(180deg,var(--blue-bright),var(--blue));
+    box-shadow:0 8px 24px rgba(24,142,201,.26)
+  }
+  #open360:disabled{cursor:not-allowed;color:#777;background:#222;box-shadow:none}
+  #details{width:50px;background:#1b1b1e;color:var(--text);font-size:20px}
+  .drawer{
+    position:fixed;left:10px;right:10px;bottom:calc(82px + env(safe-area-inset-bottom));z-index:5;
+    max-width:620px;margin:auto;padding:14px;border:1px solid var(--line);border-radius:10px;
+    background:rgba(20,20,22,.98);box-shadow:0 18px 50px rgba(0,0,0,.55)
+  }
+  .drawer.hidden{display:none}
+  .drawer h2{font-size:14px;margin:0 0 10px}
+  .row{display:grid;grid-template-columns:86px 1fr;gap:10px;padding:7px 0;border-top:1px solid rgba(255,255,255,.07)}
+  .row:first-of-type{border-top:0}
+  .key{color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+  .value{font-size:12.5px;line-height:1.45;word-break:break-word}
+  .note{margin:10px 0 0;color:var(--muted);font-size:11.5px;line-height:1.45}
+  .close{float:right;border:0;background:transparent;color:var(--text);min-height:auto;padding:0;font-size:20px}
+  .ok{color:#9be0ff}
+  .warn{color:#ffb9bc}
+  @media(min-width:760px){
+    .shell{grid-template-columns:minmax(0,760px);justify-content:center;background:#050506}
+    header,.handoff,iframe{width:min(760px,100vw)}
+    .handoff{justify-self:center}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="brand">Caption Studio <span>+</span> Content360</div>
+    <div class="mode">Intelligence first. Distribution second.</div>
+  </header>
+
+  <iframe id="studioFrame" src="../" title="Baxstar Caption Studio"></iframe>
+
+  <section class="handoff" aria-label="Content360 handoff">
+    <p class="state" id="state" aria-live="polite">Finish the post above. The handoff unlocks when the caption is ready.</p>
+    <div class="actions">
+      <button id="open360" type="button" disabled>Copy + open Content360</button>
+      <button id="details" type="button" aria-label="Show posting checklist" title="Show posting checklist">i</button>
+    </div>
+  </section>
+</div>
+
+<section class="drawer hidden" id="drawer" aria-label="Posting checklist">
+  <button class="close" id="closeDrawer" type="button" aria-label="Close checklist">x</button>
+  <h2>Content360 handoff checklist</h2>
+  <div class="row"><div class="key">Caption</div><div class="value" id="dCaption">Not ready</div></div>
+  <div class="row"><div class="key">Media</div><div class="value" id="dMedia">No media detected</div></div>
+  <div class="row"><div class="key">Tag people</div><div class="value" id="dHandles">Nothing to tag</div></div>
+  <div class="row"><div class="key">Location</div><div class="value" id="dLake">Leave empty</div></div>
+  <div class="row"><div class="key">Timing</div><div class="value" id="dTime">Use Content360 scheduling</div></div>
+  <p class="note">Pilot limitation: Content360 does not receive the media automatically. Upload the same photo or video there, paste the copied caption, then add the tags and location shown here.</p>
+</section>
+
+<script>
+const CONTENT360_CREATE_URL = "https://app.content360.io/os/b6428c4a-dd4a-4c1e-9e89-b22622111f7a/posts/create";
+const frame = document.getElementById("studioFrame");
+const openButton = document.getElementById("open360");
+const state = document.getElementById("state");
+const drawer = document.getElementById("drawer");
+let observer = null;
+
+function studioDocument(){
+  try { return frame.contentDocument || frame.contentWindow.document; }
+  catch { return null; }
+}
+
+function getPacket(){
+  const doc = studioDocument();
+  const win = frame.contentWindow;
+  if (!doc || !win) return null;
+
+  let assembled = null;
+  try {
+    if (typeof win.assemble === "function") assembled = win.assemble();
+  } catch {}
+
+  const text = (assembled && assembled.text) || (doc.getElementById("preview")?.innerText || "").trim();
+  if (!text) return null;
+
+  const handles = assembled && Array.isArray(assembled.handles)
+    ? assembled.handles
+    : (doc.getElementById("cHandles")?.innerText || "").split(/\s+/).filter((x) => x.startsWith("@"));
+  const lake = (assembled && assembled.lake) || (doc.getElementById("cLake")?.innerText || "").trim();
+  const timeButton = doc.querySelector("#timeSeg button.on");
+  const time = timeButton?.dataset?.t || timeButton?.innerText?.trim() || "Use Content360 scheduling";
+  const mediaCount = Array.isArray(win.__images) ? win.__images.length : doc.querySelectorAll("#thumbs .thumb").length;
+
+  return {
+    text,
+    handles: handles.filter(Boolean),
+    lake: lake && !/leave empty/i.test(lake) ? lake : "",
+    time,
+    mediaCount
+  };
+}
+
+function renderChecklist(packet){
+  document.getElementById("dCaption").textContent = packet ? "Ready and copied during handoff" : "Not ready";
+  document.getElementById("dMedia").textContent = packet && packet.mediaCount
+    ? `${packet.mediaCount} item${packet.mediaCount === 1 ? "" : "s"} in Caption Studio - upload the same media in Content360`
+    : "No media detected";
+  document.getElementById("dHandles").textContent = packet && packet.handles.length ? packet.handles.join("  ") : "Nothing to tag";
+  document.getElementById("dLake").textContent = packet && packet.lake ? packet.lake : "Leave empty";
+  document.getElementById("dTime").textContent = packet ? packet.time : "Use Content360 scheduling";
+}
+
+function refreshReady(){
+  const packet = getPacket();
+  openButton.disabled = !packet;
+  if (packet) {
+    state.innerHTML = '<span class="ok">Post ready.</span> One tap copies the caption and opens the Content360 composer.';
+  } else {
+    state.textContent = "Finish the post above. The handoff unlocks when the caption is ready.";
+  }
+  renderChecklist(packet);
+}
+
+frame.addEventListener("load", () => {
+  if (observer) observer.disconnect();
+  const doc = studioDocument();
+  if (!doc) {
+    state.innerHTML = '<span class="warn">Could not connect to Caption Studio.</span> Open the standard app instead.';
+    return;
+  }
+  observer = new MutationObserver(refreshReady);
+  observer.observe(doc.body, { subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:["class"] });
+  doc.addEventListener("input", refreshReady, true);
+  doc.addEventListener("change", refreshReady, true);
+  refreshReady();
+});
+
+async function copyText(text){
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  }
+}
+
+openButton.addEventListener("click", async () => {
+  const packet = getPacket();
+  if (!packet) return;
+
+  // Open synchronously from the user's click so mobile browsers do not block it.
+  const tab = window.open("about:blank", "_blank");
+  if (tab) tab.opener = null;
+
+  const copied = await copyText(packet.text);
+  renderChecklist(packet);
+  drawer.classList.remove("hidden");
+  state.innerHTML = copied
+    ? '<span class="ok">Caption copied.</span> Upload the same media in Content360, paste, then use the checklist.'
+    : '<span class="warn">Content360 opened, but clipboard access failed.</span> Copy from Caption Studio before posting.';
+
+  if (tab) tab.location.href = CONTENT360_CREATE_URL;
+  else window.location.href = CONTENT360_CREATE_URL;
+});
+
+document.getElementById("details").addEventListener("click", () => {
+  renderChecklist(getPacket());
+  drawer.classList.toggle("hidden");
+});
+document.getElementById("closeDrawer").addEventListener("click", () => drawer.classList.add("hidden"));
+
+// Test-only access; no persistence and no product behavior depends on it.
+window.__content360Bridge = { getPacket, refreshReady, CONTENT360_CREATE_URL };
+</script>
+</body>
+</html>
