@@ -1,0 +1,33 @@
+name: Content360 bridge checks
+
+on:
+  push:
+    branches:
+      - chatgpt/content360-bridge
+    paths:
+      - "app/content360/**"
+      - "app/index.html"
+      - ".devtest/content360-bridge-static.mjs"
+      - ".github/workflows/content360-bridge.yml"
+  pull_request:
+    paths:
+      - "app/content360/**"
+      - "app/index.html"
+      - ".devtest/content360-bridge-static.mjs"
+      - ".github/workflows/content360-bridge.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify Content360 bridge contract
+        run: node .devtest/content360-bridge-static.mjs
