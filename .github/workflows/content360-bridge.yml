@@ -3,6 +3,7 @@ name: Content360 bridge checks
 on:
   push:
     branches:
+      - main
       - chatgpt/content360-bridge
     paths:
       - "app/content360/**"
@@ -15,6 +16,7 @@ on:
       - "app/index.html"
       - ".devtest/content360-bridge-static.mjs"
       - ".github/workflows/content360-bridge.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
