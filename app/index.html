@@ -160,6 +160,8 @@
   }
   .btn-copy{margin-top:4px;}
   .btn:focus-visible{outline:2px solid #fff;outline-offset:3px;}
+  .pubrow{display:flex;gap:8px;align-items:stretch;margin-top:8px;}
+  .pubrow .txt{flex:1;min-width:0;}
 
   /* ---------- Toggles / chips ---------- */
   .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);}
@@ -415,6 +417,11 @@
       <div class="count"><span id="tagCount"></span><span id="charCount"></span></div>
       <button class="btn btn-copy" id="copy">Copy caption</button>
       <button class="btn btn-copy" id="share">Share photo + caption</button>
+      <button class="btn btn-primary" id="publish">Publish &mdash; auto-posts IG + FB + Google</button>
+      <div class="pubrow hidden" id="pubSetup">
+        <input class="txt" type="url" id="outboxUrl" placeholder="Paste the outbox web-app URL (&hellip;/exec) &mdash; one time" />
+        <button class="btn btn-copy" id="outboxSave" style="width:auto;flex:none;padding:10px 18px;margin-top:0">Save</button>
+      </div>
 
       <!-- Handles and location live in Instagram's own fields, not in the caption text.
            This is the checklist for what to type there after pasting. -->
@@ -429,7 +436,7 @@
 
       <p class="note">
         <b>Hide like count:</b> set once in Instagram → Settings → "Hide like and view counts" (covers every post — can't be set from here).<br>
-        <b>Timing:</b> this tool drafts; you still post manually. Auto-scheduling comes when we wire the backend.
+        <b>Timing:</b> Publish stages the post privately and the automation publishes it at the selected time — no takebacks once it posts. Copy/Share stay manual.
       </p>
     </div>
 
@@ -475,6 +482,7 @@ const MENTIONS = [
 let images = [];          // {dataUrl, mediaType, b64}
 let mentionState = {};     // key -> bool
 let postTime = "4 PM CT";
+let lastSpecies = "";
 
 const $ = id => document.getElementById(id);
 
@@ -635,6 +643,7 @@ function fillResults(o){
   $("caption").value = (o.captionDraft||"").trim();
   $("bass").checked = !!o.isBassPost;
   $("lake").value = o.lakeGuess || (o.detroitLake ? "Detroit Lake" : "");
+  lastSpecies = Array.isArray(o.species) && o.species.length ? String(o.species[0]) : "";
 
   mentionState = {};
   MENTIONS.forEach(m => mentionState[m.key] = !!o[m.key]);
@@ -814,6 +823,150 @@ $("share").addEventListener("click", async () => {
     else done("Share photo + caption");
   }
 });
+
+
+/* ---------- Publish (Drive outbox -> Zapier auto-post) ---------- */
+// One tap stages the finished post (full-quality JPEG + the whole post as JSON in the
+// file's Drive description) in the private "Baxstar Ember Outbox" folder. The live Zap
+// picks it up, waits until postAt, then publishes to Instagram + Facebook + Google
+// Business Profile. Same contract as Ember's Caption Studio (see baxstar-ember
+// apps-script/outbox/Code.gs). The outbox web-app URL is deliberately NOT in this file:
+// this repo is public and the Zap auto-posts, so the URL would let anyone post to the
+// accounts. It lives in localStorage instead, pasted once per device.
+const OUTBOX_KEY = "cs-outbox-url";
+const PUB_LABEL = "Publish — auto-posts IG + FB + Google";
+function outboxUrl(){
+  try {
+    let v = localStorage.getItem(OUTBOX_KEY);
+    if (!v) return "";
+    if (v[0] === '"') v = JSON.parse(v);               // tolerate Ember's JSON-string form
+    return /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(v) ? v : "";
+  } catch { return ""; }
+}
+
+/* Next occurrence of hour:00 in America/Chicago as a UTC ISO instant, DST-safe.
+   The wall-clock target is converted with the zone offset at a first guess, then
+   refined once with the offset AT that guess - two passes settle any DST boundary. */
+function chicagoOffsetMs(atUtcMs){
+  atUtcMs = atUtcMs - (atUtcMs % 1000);            // Intl truncates to seconds; mirror it
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone:"America/Chicago", hour12:false, year:"numeric", month:"2-digit",
+    day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit"
+  }).formatToParts(new Date(atUtcMs)).map(x => [x.type, x.value]));
+  return Date.UTC(+p.year, p.month - 1, +p.day, p.hour % 24, +p.minute, +p.second) - atUtcMs;
+}
+function nextChicagoISO(hour, from){
+  const now = from instanceof Date ? from : new Date();
+  const today = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone:"America/Chicago", hour12:false, year:"numeric", month:"2-digit", day:"2-digit"
+  }).formatToParts(now).map(x => [x.type, x.value]));
+  for (let add = 0; add < 3; add++){
+    const wall = Date.UTC(+today.year, today.month - 1, +today.day + add, hour, 0, 0);
+    let utc = wall - chicagoOffsetMs(now.getTime());
+    utc = wall - chicagoOffsetMs(utc);               // refine at the guess itself
+    if (utc > now.getTime() + 60000) return new Date(utc).toISOString();
+  }
+  return null; // three Chicago days always contain a future hour:00
+}
+
+/* Full-quality (<=1440px) JPEG base64 from the original file; falls back to the
+   1280px model render when no original survives (offline-queue restore). */
+function outboxJpeg(im){
+  if (!im.file) return Promise.resolve(im.b64);
+  return new Promise((res) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const pic = new Image();
+      pic.onload = () => {
+        const max = 1440;
+        let { width:w, height:h } = pic;
+        if (w > max || h > max){ const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(pic, 0, 0, w, h);
+        res(c.toDataURL("image/jpeg", 0.92).split(",")[1]);
+      };
+      pic.onerror = () => res(im.b64);
+      pic.src = reader.result;
+    };
+    reader.onerror = () => res(im.b64);
+    reader.readAsDataURL(im.file);
+  });
+}
+
+let pubArmed = false;
+function pubStatus(label){ $("publish").textContent = label; }
+$("outboxSave").addEventListener("click", () => {
+  const v = $("outboxUrl").value.trim();
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(v)){
+    showError("That doesn’t look like an Apps Script /exec URL."); return;
+  }
+  try { localStorage.setItem(OUTBOX_KEY, v); } catch {}
+  $("pubSetup").classList.add("hidden");
+  pubStatus(PUB_LABEL);
+});
+
+$("publish").addEventListener("click", async () => {
+  $("errBox").innerHTML = "";
+  if (!images.length){ showError("Add a photo first."); return; }
+  if (images.length > 1){
+    showError("Publish sends 1 photo per post for now — the automation would turn a carousel into separate posts. Use Share for carousels.");
+    return;
+  }
+  if (!outboxUrl()){ $("pubSetup").classList.remove("hidden"); pubStatus("Paste the outbox URL below, then Publish"); return; }
+
+  const hour = postTime === "7 PM CT" ? 19 : 16;
+  if (!pubArmed){
+    pubArmed = true;
+    pubStatus("Confirm — really posts at " + postTime);
+    setTimeout(() => { if (pubArmed){ pubArmed = false; pubStatus(PUB_LABEL); } }, 6000);
+    return;
+  }
+  pubArmed = false;
+
+  const btn = $("publish");
+  btn.disabled = true;
+  pubStatus("Staging…");
+  try {
+    const a = assemble();
+    const b64 = await outboxJpeg(images[0]);
+    const postAt = nextChicagoISO(hour);
+    const payload = {
+      source: "caption-studio",
+      caption: a.text,
+      captionWithHandles: a.handles.length ? a.text + "\n" + a.handles.join(" ") : a.text,
+      lockedTag: a.isBass ? BRAND.bassTag : "",
+      hashtagCount: a.hashCount,
+      images: [b64],
+      imageBase64: b64,
+      mimeType: "image/jpeg",
+      species: lastSpecies,
+      lake: a.lake,                    // a NAME, never a location ID
+      postWindow: postTime,
+      postAt: postAt,                  // what the Zap's Delay-Until reads
+      postTimeLocal: hour + ":00",
+      sponsors: a.handles,             // -> Instagram Tagged User(s)
+      clientTime: new Date().toISOString()
+    };
+    const r = await fetch(outboxUrl(), {
+      method: "POST",
+      // text/plain is CORS-simple: no preflight, which Apps Script web apps mishandle.
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: JSON.stringify(payload)
+    });
+    const out = await r.json();
+    if (!out || out.ok !== true) throw new Error((out && out.error) || "outbox refused the post");
+    const local = new Date(postAt);
+    pubStatus("Staged ✓ — posts " + local.toLocaleString([], { weekday:"short", hour:"numeric", minute:"2-digit" }));
+    setTimeout(() => { pubStatus(PUB_LABEL); btn.disabled = false; }, 6000);
+  } catch (e) {
+    btn.disabled = false;
+    pubStatus(PUB_LABEL);
+    showError("Couldn’t stage the post — " + (e && e.message ? e.message : "network error") + ". Nothing was published.");
+  }
+});
+// Test hooks for the harness only - carry no behavior.
+window.__nextChicagoISO = nextChicagoISO;
 
 /* ---------- Offline draft queue ---------- */
 // The 1280px renders are all the model needs, so they are all that is saved —
